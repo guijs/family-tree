@@ -1,0 +1,51 @@
+{
+  "name": "genealogy-platform",
+  "version": "1.0.0",
+  "description": "Enterprise Genealogy Management Platform",
+  "private": true,
+  "scripts": {
+    "backend:dev": "cd backend && npm run start:dev",
+    "backend:build": "cd backend && npm run build",
+    "frontend:dev": "cd frontend && npm run dev",
+    "frontend:build": "cd frontend && npm run build",
+    "prisma:generate": "cd backend && npx prisma generate",
+    "prisma:migrate": "cd backend && npx prisma migrate dev",
+    "prisma:studio": "cd backend && npx prisma studio",
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
+    "test": "cd backend && npm run test",
+    "test:e2e": "cd backend && npm run test:e2e"
+  },
+  "keywords": [
+    "genealogy",
+    "family-tree",
+    "nestjs",
+    "vue3",
+    "postgresql"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.45.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-prettier": "^5.0.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^13.2.3",
+    "prettier": "^3.0.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
+  }
+}
