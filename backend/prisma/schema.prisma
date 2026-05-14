@@ -7,50 +7,180 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Person {
+enum Role {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
+enum RelationshipType {
+  BLOOD
+  MARRIAGE
+  ADOPTION
+  STEP_PARENT
+  STEP_CHILD
+  FOSTER
+  OTHER
+}
+
+enum ConfidenceLevel {
+  CONFIRMED
+  POSSIBLE
+  DISPUTED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  phone     String?  @unique
+  password  String
+  firstName String?
+  lastName  String?
+  avatar    String?
+  role      Role     @default(VIEWER)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  treeMemberships TreeMember[]
+  auditLogs       AuditLog[]
+  createdPersons  Person[]     @relation("CreatedBy")
+  
+  @@index([email])
+  @@index([phone])
+}
+
+model GenealogyTree {
   id          String   @id @default(uuid())
   name        String
-  gender      String?
-  birthDate   DateTime?
-  deathDate   DateTime?
-  photoUrl    String?
-  biography   String?
+  description String?
+  isPublic    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  
+  members     TreeMember[]
+  persons     Person[]
+  relationships Relationship[]
+  auditLogs   AuditLog[]
+  
+  @@index([isPublic])
+  @@index([deletedAt])
+}
 
-  // Relationships
-  fatherId    String?
-  father      Person?  @relation("FatherChildren", fields: [fatherId], references: [id])
-  fatherChildren Person[] @relation("FatherChildren")
+model TreeMember {
+  id        String   @id @default(uuid())
+  userId    String
+  treeId    String
+  role      Role     @default(VIEWER)
+  joinedAt  DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tree GenealogyTree @relation(fields: [treeId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, treeId])
+  @@index([treeId])
+  @@index([userId])
+}
 
-  motherId    String?
-  mother      Person?  @relation("MotherChildren", fields: [motherId], references: [id])
-  motherChildren Person[] @relation("MotherChildren")
-
-  // Spouse relationships (many-to-many through Relationship table)
-  spouses     Relationship[] @relation("PersonSpouses1")
-  spouseOf    Relationship[] @relation("PersonSpouses2")
-
-  @@index([fatherId])
-  @@index([motherId])
+model Person {
+  id          String   @id @default(uuid())
+  treeId      String
+  parentId    String?
+  firstName   String
+  lastName    String
+  middleName  String?
+  formalName  String?  // 字号
+  gender      String?  // M/F/U
+  birthDate   DateTime?
+  deathDate   DateTime?
+  birthPlace  String?
+  deathPlace  String?
+  biography   String?  @db.Text
+  isLiving    Boolean  @default(true)
+  isVerified  Boolean  @default(false)
+  notes       Json?    // 存疑/待考标记等
+  version     Int      @default(0)
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  
+  tree        GenealogyTree @relation(fields: [treeId], references: [id])
+  parent      Person?       @relation("FamilyChildren", fields: [parentId], references: [id])
+  children    Person[]      @relation("FamilyChildren")
+  
+  createdBy   User?         @relation("CreatedBy", fields: [createdById], references: [id])
+  
+  relationshipsA Relationship[] @relation("RelationshipA")
+  relationshipsB Relationship[] @relation("RelationshipB")
+  
+  @@index([treeId, parentId])
+  @@index([treeId, id, parentId, isLiving])
+  @@index([deletedAt])
+  @@index([lastName, firstName])
 }
 
 model Relationship {
-  id          String   @id @default(uuid())
-  type        String   // "MARRIAGE", "DIVORCE", etc.
-  startDate   DateTime?
-  endDate     DateTime?
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  person1Id   String
-  person1     Person   @relation("PersonSpouses1", fields: [person1Id], references: [id], onDelete: Cascade)
+  id          String           @id @default(uuid())
+  treeId      String
+  personAId   String
+  personBId   String
+  type        RelationshipType
+  confidence  ConfidenceLevel  @default(CONFIRMED)
+  source      String?          // 关系来源：族谱/口述/文献
+  notes       String?          @db.Text
+  version     Int              @default(0)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
   
-  person2Id   String
-  person2     Person   @relation("PersonSpouses2", fields: [person2Id], references: [id], onDelete: Cascade)
+  tree        GenealogyTree    @relation(fields: [treeId], references: [id])
+  personA     Person           @relation("RelationshipA", fields: [personAId], references: [id])
+  personB     Person           @relation("RelationshipB", fields: [personBId], references: [id])
+  
+  @@unique([personAId, personBId, type])
+  @@index([treeId])
+  @@index([personAId])
+  @@index([personBId])
+}
 
-  @@unique([person1Id, person2Id])
-  @@index([person1Id])
-  @@index([person2Id])
+model AuditLog {
+  id          String   @id @default(uuid())
+  treeId      String?
+  userId      String?
+  action      String   // CREATE, UPDATE, DELETE, EXPORT, etc.
+  entityType  String   // PERSON, RELATIONSHIP, TREE, etc.
+  entityId    String?
+  oldData     Json?
+  newData     Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+  
+  tree        GenealogyTree? @relation(fields: [treeId], references: [id])
+  user        User?          @relation(fields: [userId], references: [id])
+  
+  @@index([treeId])
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model PendingChange {
+  id          String   @id @default(uuid())
+  treeId      String
+  userId      String
+  entityType  String   // PERSON, RELATIONSHIP
+  entityId    String?
+  action      String   // CREATE, UPDATE, DELETE
+  changeData  Json
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  reviewNotes String?
+  createdAt   DateTime @default(now())
+  
+  @@index([treeId])
+  @@index([status])
+  @@index([userId])
 }

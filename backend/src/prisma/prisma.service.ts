@@ -1,18 +1,18 @@
+import { Injectable, Inject, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
-const prismaClientSingleton = () => {
-  return new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-  });
-};
+@Injectable()
+export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+  constructor(@Inject('PRISMA_CLIENT') prisma: PrismaClient) {
+    super();
+    // Use the injected client or create new one
+  }
 
-declare global {
-  // eslint-disable-next-line no-var
-  var prisma: undefined | ReturnType<typeof prismaClientSingleton>;
+  async onModuleInit() {
+    await this.$connect();
+  }
+
+  async onModuleDestroy() {
+    await this.$disconnect();
+  }
 }
-
-const prisma = globalThis.prisma ?? prismaClientSingleton();
-
-if (process.env.NODE_ENV !== 'production') globalThis.prisma = prisma;
-
-export default prisma;
